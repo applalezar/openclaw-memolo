@@ -1,131 +1,132 @@
 # Hướng dẫn Setup & Vận hành — Memolo Memory System
 
-## Mục lục
+## İçindekiler
 1. [Quick Setup (Docker)](#1-quick-setup-docker)
-2. [Cài đặt thủ công (dev)](#2-cài-đặt-thủ-công-dev)
-3. [Cấu hình](#3-cấu-hình)
-4. [Authentication & Agent Keys](#4-authentication--agent-keys)
-5. [LAN Access](#5-lan-access)
-6. [Tích hợp Agent](#6-tích-hợp-agent)
+2. [Manuel kurulum (dev)](#2-manuel-kurulum-dev)
+3. [Yapılandırma](#3-yapılandırma)
+4. [Kimlik Doğrulama & Ajan Anahtarları](#4-kimlik-doğrulama--ajan-anahtarları)
+5. [LAN Erişimi](#5-lan-erişimi)
+6. [Ajan Entegrasyonu](#6-ajen-entegreasyonu)
 7. [Dashboard](#7-dashboard)
-8. [Runtime Config](#8-runtime-config)
-9. [Vận hành & Bảo trì](#9-vận-hành--bảo-trì)
-10. [Xử lý lỗi](#10-xử-lý-lỗi)
+8. [Çalışma Zamanı Yapılandırması](#8-çalışma-zamanı-yapılandırması)
+9. [Çalıştırma & Bakım](#9-çalıştırma--bakım)
+10. [Hata Yönetimi](#10-hata-yönetimi)
 
 ---
 
 ## 1. Quick Setup (Docker)
 
-### Prerequisites
+### Ön Koşullar
 - Docker Desktop ≥ 4.0
-- Ollama ([ollama.com](https://ollama.com)) chạy trên host machine (chỉ dùng cho embedding)
+- Ollama ([ollama.com](https://ollama.com)) host üzerinde çalışmalı (yalnızca embedding için kullanılır)
 - MiniMax API key ([platform.minimax.io](https://platform.minimax.io))
 
 ```bash
-# 1. Pull Ollama embedding model (chạy trên host, KHÔNG phải trong Docker)
+# 1. Ollama embedding modelini çek (host üzerinde çalıştır, Docker içinde değil)
 ollama pull qwen3-embedding:8b
 
-# 2. Configure
+# 2. Yapılandır
 cd memolo
 cp .env.example .env
-# Edit .env:
-#   → MEMOLO_MASTER_KEY: đổi thành chuỗi random
-#   → MINIMAX_API_KEY: điền API key từ MiniMax
-# Generate master key: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# .env içinde düzenle:
+#   → MEMOLO_MASTER_KEY: rastgele bir diziye değiştir
+#   → MINIMAX_API_KEY: MiniMax API anahtarını ekle
+# Master key üret: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-# 3. Start (PG + Qdrant + Server)
+# 3. Başlat (PG + Qdrant + Server)
 docker compose up -d
 
-# 4. Verify
+# 4. Doğrula
 curl http://localhost:7437/api/health
 # → { "status": "healthy", "checks": { "server": "ok", "postgres": "ok", "qdrant": "ok", "embedding": "ok" } }
 ```
 
-**Xong!** Server chạy trên port 7437, dashboard mở cùng URL.
+**Tamam!** Sunucu 7437 portunda çalışır, dashboard aynı URL ile açılır.
 
 ---
 
-## 2. Cài đặt thủ công (dev)
+## 2. Manuel kurulum (dev)
 
-Nếu muốn dev trực tiếp (không qua Docker):
+Eğer Docker üzerinden değil, doğrudan geliştirme modunda çalışmak isterseniz:
 
 ```bash
-# Start infrastructure
-docker compose up -d postgres qdrant   # Chỉ PG + Qdrant
+# Altyapıyı başlat
+docker compose up -d postgres qdrant   # Sadece PG + Qdrant
 
-# Server chạy trực tiếp
+# Sunucuyu doğrudan çalıştır
+docker compose up -d postgres qdrant
 cd server
 cp ../.env.example .env
-# Sửa .env: PG_HOST=localhost, QDRANT_HOST=localhost, OLLAMA_BASE_URL=http://localhost:11434
+# .env dosyasını düzenle: PG_HOST=localhost, QDRANT_HOST=localhost, OLLAMA_BASE_URL=http://localhost:11434
 npm install
 npm run migrate
-npm run dev    # Auto-reload (node --watch)
+npm run dev    # Otomatik yeniden yükleme (node --watch)
 ```
 
 ---
 
-## 3. Cấu hình
+## 3. Yapılandırma
 
-File `.env` ở project root:
+Proje kökünde `.env` dosyası bulunur:
 
 ```env
-# === BẮT BUỘC ===
-MEMOLO_MASTER_KEY=your-random-secret-key    # Master API key
+# === ZORUNLU ===
+MEMOLO_MASTER_KEY=your-random-secret-key    # Master API anahtarı
 
-# === LLM: MiniMax M2.5 (BẮT BUỘC) ===
-MINIMAX_API_KEY=your-minimax-api-key        # Lấy từ platform.minimax.io
-MINIMAX_MODEL=MiniMax-M2.5                  # Model name
+# === LLM: MiniMax M2.5 (ZORUNLU) ===
+MINIMAX_API_KEY=your-minimax-api-key        # platform.minimax.io'dan alın
+MINIMAX_MODEL=MiniMax-M2.5                  # Model adı
 MINIMAX_BASE_URL=https://api.minimax.io/anthropic/v1/messages
 
-# === SERVER ===
-PORT=7437                                    # Server port
+# === SUNUCU ===
+PORT=7437                                    # Sunucu portu
 
-# === EMBEDDING: Ollama (chỉ dùng cho embedding) ===
-OLLAMA_BASE_URL=http://host.docker.internal:11434  # Ollama URL (Docker)
+# === EMBEDDING: Ollama (yalnızca embedding için) ===
+OLLAMA_BASE_URL=http://host.docker.internal:11434  # Ollama URL'si (Docker)
 OLLAMA_EMBED_MODEL=qwen3-embedding:8b
-EMBEDDING_DIMENSIONS=4096                    # Vector dimensions
+EMBEDDING_DIMENSIONS=4096                    # Vektör boyutları
 
-# === FEATURE FLAGS (mặc định: true) ===
-ENABLE_FACT_EXTRACTION=true                  # Extract atomic facts từ mỗi exchange
-ENABLE_RERANKING=true                        # LLM rerank search results
-ENABLE_GRAPH=true                            # Build knowledge graph
+# === ÖZELLİK BAYRAKLARI (varsayılan: true) ===
+ENABLE_FACT_EXTRACTION=true                  # Her etkileşimden atomik gerçek çıkar
+ENABLE_RERANKING=true                       # LLM rerank işlemi
+ENABLE_GRAPH=true                            # Bilgi grafiği oluştur
 
-# === TIMEOUTS ===
-FACT_EXTRACT_TIMEOUT=60000                   # Fact extraction (ms)
-DEDUP_TIMEOUT=60000                          # Deduplication (ms)
-RERANK_TIMEOUT=30000                         # Reranking (ms)
+# === ZAMAN AŞIMLARI ===
+FACT_EXTRACT_TIMEOUT=60000                   # Gerçek çıkarma (ms)
+DEDUP_TIMEOUT=60000                         # Deduplication (ms)
+RERANK_TIMEOUT=30000                        # Reranking (ms)
 
-# === DATABASE (không cần đổi nếu dùng Docker) ===
-PG_HOST=postgres        # Docker service name
+# === VERİTABANI (Docker kullanıyorsanız değiştirmeyin) ===
+PG_HOST=postgres        # Docker servis adı
 PG_PORT=5432
 PG_USER=memolo
 PG_PASSWORD=memolo_secret
 PG_DATABASE=memolo
-QDRANT_HOST=qdrant      # Docker service name
+QDRANT_HOST=qdrant      # Docker servis adı
 QDRANT_PORT=6333
 ```
 
-> ⚠️ **Env var names**: `PG_HOST` (không phải `POSTGRES_HOST`), `OLLAMA_BASE_URL` (không phải `OLLAMA_URL`)
+> ⚠️ **Env değişkeni isimleri**: `PG_HOST` (`POSTGRES_HOST` değil), `OLLAMA_BASE_URL` (`OLLAMA_URL` değil)
 
 ---
 
-## 4. Authentication & Agent Keys
+## 4. Kimlik Doğrulama & Ajan Anahtarları
 
-### 2-tier auth system
+### 2 katmanlı kimlik doğrulama sistemi
 
-```
+```text
 Master Key (env: MEMOLO_MASTER_KEY)
-  ├── Full access: tất cả endpoints
-  ├── Dùng để: register agents, run intelligence, admin
-  └── Set 1 lần trong .env
+  ├── Tam erişim: tüm endpoint'ler
+  ├── Kullanım: ajan kaydı, zeka çalıştırma, yönetici işlemleri
+  └── .env içinde tek seferde ayarlanır
 
 Per-Agent Key (DB: agents.api_key)
-  ├── Full access: tất cả endpoints
-  ├── Auto-generated khi register
-  └── Mỗi agent 1 key riêng
+  ├── Tam erişim: tüm endpoint'ler
+  ├── Kayıt sırasında otomatik üretilir
+  └── Her ajan için ayrı bir key bulunur
 ```
 
-### Tạo agent + lấy key
+### Ajan oluştur + key al
 
 ```bash
 curl -X POST http://localhost:7437/api/memory/agents/register \
@@ -134,7 +135,7 @@ curl -X POST http://localhost:7437/api/memory/agents/register \
   -d '{"id":"coding-agent","name":"Coding Assistant"}'
 ```
 
-Response:
+Cevap:
 ```json
 {
   "success": true,
@@ -147,250 +148,163 @@ Response:
 }
 ```
 
-**Lưu `apiKey` vào config của agent** — dùng cho tất cả API calls.
+**`apiKey` değerini ajan konfigürasyonunda saklayın** — tüm API çağrılarında kullanılır.
 
-### Rotate key (nếu bị lộ)
+### Anahtarı yenileme (sızarsa)
 
 ```bash
 curl -X POST http://localhost:7437/api/memory/agents/coding-agent/regenerate-key \
   -H "X-API-Key: YOUR_MASTER_KEY"
-# → New key, old key invalidated
+# → Yeni key, eski key geçersiz olur
 ```
 
-### Gửi key trong request
+### İsteklerde key gönderme
 
-```
+```text
 X-API-Key: agent-api-key-here
 ```
 
-### Exceptions
-- `GET /api/health` — không cần auth
-- Nếu `MEMOLO_MASTER_KEY` không set → auth tắt hoàn toàn (dev mode)
+### İstisnalar
+- `GET /api/health` — kimlik doğrulama gerektirmez
+- `MEMOLO_MASTER_KEY` tanımlanmamışsa — auth tamamen kapatılır (dev modu)
 
 ---
 
-## 5. LAN Access
+## 5. LAN Erişimi
 
-Server bind `0.0.0.0:7437` → truy cập được từ mọi thiết bị trong mạng LAN.
+Sunucu `0.0.0.0:7437` bağlanır → LAN içindeki tüm cihazlardan erişilebilir.
 
-### Tìm IP của máy chạy server
+### Sunucu IP'sini bulma
 
-Server log khi startup:
-```
+Başlangıç loglarında şu satırlar görünür:
+
+```text
 📡 Access URLs:
    Local:     http://localhost:7437
    LAN (Wi-Fi): http://192.168.1.100:7437
    LAN (Ethernet): http://192.168.1.101:7437
 ```
 
-### Agent ở thiết bị khác
+### Başka cihazdan ajan kullanımı
 
 ```javascript
-// Agent trên laptop khác
+// Başka bir laptop üzerindeki ajan
 const memory = new MemoryClient({
   agentId: 'remote-agent',
   apiKey: 'agent-specific-key',
-  serverUrl: 'http://192.168.1.100:7437',  // IP máy chạy server
+  serverUrl: 'http://192.168.1.100:7437', // sunucu çalışan makinenin IP'si
 });
 ```
 
-### Windows Firewall
-Nếu agents ở máy khác không kết nối được, mở port:
-```powershell
-# PowerShell (Admin)
-New-NetFirewallRule -DisplayName "Memolo" -Direction Inbound -Port 7437 -Protocol TCP -Action Allow
-```
+### Windows Güvenlik Duvarı
+Eğer diğer ajanlar bağlanamıyorsa şu portu açın:
 
-### Bảo mật LAN
-- ✅ API key auth trên mọi request
-- ✅ Per-agent key isolation
-- ✅ PG + Qdrant không expose ra ngoài Docker
-- ⚠️ Chỉ an toàn cho mạng LAN private — KHÔNG expose ra internet
+```powershell
+# PowerShell (Yönetici)
+New-NetFirewallRule -DisplayName "Memolo TCP 7437" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 7437
+```
 
 ---
 
-## 6. Tích hợp Agent
+## 6. Ajen Entegrasyonu
 
-### SDK (Node.js)
+Memolo, ajanların konuşmalarını izleyerek belleği otomatik olarak yönetir. Ajanlar, doğrudan `memolo_search`, `memolo_store`, `memolo_list`, `memolo_get` ve `memolo_forget` araçlarını kullanabilir.
 
-```javascript
-const { MemoryClient } = require('memolo');
-
-const memory = new MemoryClient({
-  agentId: 'my-agent',
-  apiKey: 'key-from-register',
-  serverUrl: 'http://192.168.1.100:7437',
-});
-
-// Recall → inject context vào LLM prompt
-const ctx = await memory.recall('user question', { format: 'context' });
-
-// Store sau khi trả lời
-const result = await memory.store({
-  userMessage: 'câu hỏi',
-  agentResponse: 'câu trả lời',
-});
-// result.conversationId ← reuse cho exchanges tiếp
-```
-
-### OpenClaw Plugin (Example Integration)
+### Örnek yapılandırma (OpenClaw plugin)
 
 ```json
 {
   "memolo": {
-    "agentId": "my-agent",
+    "agentId": "coding-agent",
+    "agentName": "Coding Assistant",
     "apiKey": "${MEMOLO_API_KEY}",
-    "serverUrl": "http://192.168.1.100:7437"
+    "serverUrl": "http://192.168.1.100:7437",
+    "autoRecall": true,
+    "autoCapture": true,
+    "topK": 10,
+    "includeOtherAgents": true
   }
 }
 ```
 
-### Direct API
-
-```bash
-# Store
-curl -X POST http://192.168.1.100:7437/api/memory/store \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: AGENT_KEY" \
-  -d '{"agentId":"my-agent","userMessage":"hello","agentResponse":"hi"}'
-
-# Recall
-curl -X POST http://192.168.1.100:7437/api/memory/recall \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: AGENT_KEY" \
-  -d '{"query":"hello","agentId":"my-agent"}'
-```
+Bu özelliklerle:
+- her cevap öncesinde ilgili hafıza aranır,
+- her cevap sonrası konuşma hafızaya kaydedilir,
+- diğer ajanların paylaşılan bilgilerine erişim verilebilir.
 
 ---
 
 ## 7. Dashboard
 
-Dashboard chạy riêng (Next.js) ở port 3001, proxy API requests đến server port 7437.
+Dashboard, açık hafıza içeriğini izlemenizi, geçmiş konuşmaları aramanızı, bilgi grafiğini görmenizi ve çalışma zamanı ayarlarını yönetmenizi sağlar.
 
-Features:
-- **Stats bar**: Active memories, total exchanges, agents, conversations, SSE clients
-- **Memory Explorer**: List, filter by topic/scope/type/agent, confirm/reject/supersede
-- **Conversations**: Browse conversations with exchange count and last activity
-- **Agents**: Registered agents, API key management
-- **Knowledge Graph**: Entity visualization and exploration
-- **Knowledge Base**: Curated knowledge entries
-- **Live Logs**: Real-time log stream via SSE (HTTP requests, memory operations, errors)
-- **Runtime Settings**: Live configuration tuning (LLM provider, feature toggles, timeouts, prompts)
-- **Recall Test**: Test recall/search queries against memory
+- `http://localhost:3001` adresinde erişilir
+- canlı işlem loglarını gösterir
+- bellekleri arar ve ilgili sonuçları listeler
+- varlık/ilişki ağını görüntüler
+- runtime ayarları değiştirir
 
 ---
 
-## 8. Runtime Config
+## 8. Çalışma Zamanı Yapılandırması
 
-Server hỗ trợ thay đổi cấu hình **live** qua API (không cần restart, in-memory, reset khi restart):
+Yapılandırma örnekleri için `.env.example` dosyasına bakın. Ana parametreleri burada özetledik:
 
-```bash
-# Xem tất cả settings
-curl http://localhost:7437/api/config -H "X-API-Key: MASTER_KEY"
-
-# Tắt reranking
-curl -X PUT http://localhost:7437/api/config \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: MASTER_KEY" \
-  -d '{"settings": {"reranking.enabled": false}}'
-
-# Reset tất cả về default
-curl -X POST http://localhost:7437/api/config/reset \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: MASTER_KEY" \
-  -d '{"all": true}'
-```
-
-### Available Settings
-
-| Group | Setting | Type | Default |
-|-------|---------|------|---------|
-| AI Models | `minimax.apiKey` | string | — |
-| AI Models | `minimax.model` | string | `MiniMax-M2.5` |
-| AI Models | `minimax.baseUrl` | string | `https://api.minimax.io/anthropic/v1/messages` |
-| AI Models | `minimax.maxInputTokens` | number | `1600` |
-| Embeddings | `embedding.model` | string | `qwen3-embedding:8b` |
-| Embeddings | `embedding.baseUrl` | string | Ollama URL |
-| Embeddings | `embedding.dimensions` | readonly | `4096` |
-| Processing | `factExtraction.enabled` | boolean | `true` |
-| Processing | `factExtraction.extractAgentFacts` | boolean | `true` |
-| Processing | `reranking.enabled` | boolean | `true` |
-| Processing | `graph.enabled` | boolean | `true` |
-| Processing | `batch.enabled` | boolean | `true` |
-| Processing | `batch.intervalMs` | number | `10000` |
-| Processing | `batch.maxSize` | number | `10` |
-| Processing | `factExtraction.timeout` | number | `60000` |
-| Processing | `factExtraction.dedupTimeout` | number | `60000` |
-| Processing | `reranking.timeout` | number | `30000` |
-| Memory | `memory.vectorScoreThreshold` | number | `0.3` |
-| Memory | `memory.agentFactMinResponseLength` | number | `100` |
-| Scheduler | `scheduler.memoryDecay` | number | `21600000` (6h) |
-| Scheduler | `scheduler.duplicateDetection` | number | `7200000` (2h) |
-| Prompts | `prompt.userFactSystem` | textarea | Built-in prompt |
-| Prompts | `prompt.agentFactSystem` | textarea | Built-in prompt |
-| Prompts | `prompt.combinedSystem` | textarea | Built-in prompt |
+- `MEMOLO_MASTER_KEY`: tüm API erişimi için ana güvenlik anahtarı
+- `MINIMAX_API_KEY`: cloud LLM için erişim anahtarı
+- `MINIMAX_MODEL`: kullanılacak model adı
+- `MINIMAX_BASE_URL`: MiniMax Anthropic uyumlu API URL'si
+- `PORT`: Sunucu dinleme portu (varsayılan 7437)
+- `OLLAMA_BASE_URL`: embedding için Ollama adresi
+- `OLLAMA_EMBED_MODEL`: embedding modeli
+- `ENABLE_FACT_EXTRACTION`, `ENABLE_RERANKING`, `ENABLE_GRAPH`: açık/kapalı feature bayrakları
 
 ---
 
-## 9. Vận hành & Bảo trì
+## 9. Çalıştırma & Bakım
 
-### Update version
+### Sunucuyu başlatma
 
 ```bash
 cd memolo
-git pull                    # Hoặc copy files mới
-docker compose build        # Rebuild server image
-docker compose up -d        # Restart (data giữ nguyên)
+docker compose up -d
 ```
 
-### Backup & Restore
+### Güncelleme
 
 ```bash
-# Backup
-docker exec memolo-postgres pg_dump -U memolo memolo > backup.sql
-
-# Restore
-docker exec -i memolo-postgres psql -U memolo memolo < backup.sql
+bash update.sh
+# veya
+git pull && docker compose up -d --build memolo
 ```
 
-### Dừng / Khởi động lại
+### Logları izleme
 
 ```bash
-docker compose down          # Dừng (giữ data)
-docker compose down -v       # Dừng + XÓA data
-docker compose up -d         # Start lại
+docker compose logs -f memolo
 ```
-
-### Scheduler tự động
-
-| Task | Default Interval | Mô tả |
-|------|------------------|--------|
-| Memory Decay | 6 giờ | Giảm importance của memories cũ |
-| Duplicate Detection | 2 giờ | Merge duplicate memories |
-
-> Tất cả intervals có thể thay đổi runtime qua Settings API (`scheduler.*`).
 
 ---
 
-## 10. Xử lý lỗi
+## 10. Hata Yönetimi
 
-| Lỗi | Fix |
-|-----|-----|
-| `ECONNREFUSED :7437` | `docker compose up -d` |
-| `Embedding failed` | `ollama serve` + `ollama pull qwen3-embedding:8b` |
-| `401 API key required` | Thêm header `X-API-Key` |
-| `401 Invalid API key` | Kiểm tra key đúng chưa, hoặc regenerate |
-| Store chậm lần đầu | Ollama cold start cho embedding, bình thường |
-| Agents máy khác không connect | Mở firewall port 7437 |
-| MiniMax API error | Kiểm tra `MINIMAX_API_KEY` đúng chưa, API quota |
-| LLM returned empty content | Kiểm tra MiniMax API key và quota |
-| `Qdrant collection missing` | Restart: `docker compose restart memolo` |
-| Context window exceeded | Server tự động truncate và retry |
+### Docker çalışmıyor
+- Docker Desktop'ın açık olduğundan emin olun.
+- `docker compose ps` ile servis durumunu kontrol edin.
+- `docker compose logs` ile hataları inceleyin.
 
-### Reset toàn bộ
+### Ollama bağlantısı yok
+- Ollama host makinede çalışıyor olmalı.
+- `ollama list` komutuyla embedding modelini doğrulayın.
 
-```bash
-docker compose down -v
-docker compose up -d
-# Tất cả data bị xóa, schema auto-recreate
-```
+### API cevap vermiyor
+- `curl http://localhost:7437/api/health` ile canlılığı kontrol edin.
+- `.env` dosyasındaki `MEMOLO_MASTER_KEY` ve `MINIMAX_API_KEY` değerlerini doğrulayın.
+
+### Qdrant/PostgreSQL sorunları
+- Docker konteynerlerinin sağlıklı çalıştığından emin olun.
+- `docker compose ps` ve `docker compose logs postgres qdrant` kullanın.
+
+---
+
+Bu dosya, Memolo sisteminin kurulumu, kimlik doğrulama, ağ erişimi ve bakım süreçlerini Türkçeye çevrilmiş şekilde özetler.
